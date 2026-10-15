@@ -13,7 +13,7 @@ class Node(Generic[S, A]):
     parent: "Node[S, A] | None" = None
     action: A | None = None
     path_cost: float = 0
-    heuristic: float = 0
+    depth: int = 0
 
     def children(self, problem: "SearchProblem[S, A]") -> list["Node[S, A]"]:
         return [
@@ -22,7 +22,7 @@ class Node(Generic[S, A]):
                 parent=self,
                 action=s.action,
                 path_cost=self.path_cost + s.cost,
-                heuristic=problem.heuristic(s.state),
+                depth=self.depth + 1,
             )
             for s in problem.successors(self.state)
         ]

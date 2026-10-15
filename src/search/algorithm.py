@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar
+from collections.abc import Callable, Iterable
+from typing import Generic, TypeVar, override
 from search.node import Node
 from search.event import (
     SearchEvent,
@@ -27,12 +28,8 @@ A = TypeVar("A")
 def graph_search(
     problem: SearchProblem[S, A],
     frontier: Frontier[S, A],
-    observer: SearchObserver[S, A] | None = None,
+    emit: Callable[[SearchEvent[S, A]], None],
 ) -> Node[S, A] | None:
-    def emit(event: SearchEvent[S, A]) -> None:
-        if observer:
-            observer.on_event(event)
-
     explored = set()
 
     initial_node = Node(state=problem.initial_state())
@@ -82,12 +79,8 @@ def graph_search(
 def graph_search_depth_limited(
     problem: SearchProblem[S, A],
     depth_limit: int,
-    observer: SearchObserver[S, A] | None = None,
+    emit: Callable[[SearchEvent[S, A]], None],
 ) -> tuple[Node[S, A] | None, bool]:
-    def emit(event: SearchEvent[S, A]) -> None:
-        if observer:
-            observer.on_event(event)
-
     frontier = StackFrontier[S, A]()
     explored = set()
 
@@ -144,12 +137,8 @@ def graph_search_depth_limited(
 def graph_search_with_replacement(
     problem: SearchProblem[S, A],
     frontier: PriorityQueueFrontier[S, A],
-    observer: SearchObserver[S, A] | None = None,
+    emit: Callable[[SearchEvent[S, A]], None],
 ) -> Node[S, A] | None:
-    def emit(event: SearchEvent[S, A]) -> None:
-        if observer:
-            observer.on_event(event)
-
     explored = set()
 
     initial_node = Node(state=problem.initial_state())
@@ -206,36 +195,46 @@ def graph_search_with_replacement(
     return None
 
 
-class SearchAlgorithm(ABC):
+class SearchAlgorithm(ABC, Generic[S, A]):
     @abstractmethod
-    def search(
-        self, problem: SearchProblem[S, A], observer: SearchObserver[S, A] | None = None
-    ) -> Node[S, A] | None:
+    def search(self, problem: SearchProblem[S, A]) -> Node[S, A] | None:
         pass
 
 
-class DepthFirstSearchAlgorithm(SearchAlgorithm):
-    def search(
-        self, problem: SearchProblem[S, A], observer: SearchObserver[S, A] | None = None
-    ) -> Node[S, A] | None:
-        return graph_search(problem, StackFrontier[S, A](), observer)
+class ObservableSearchAlgorithm(SearchAlgorithm[S, A]):
+    def __init__(self):
+        self.observers: list[SearchObserver[S, A]] = []
+
+    def add_observer(self, observer: SearchObserver[S, A]) -> None:
+        self.observers.append(observer)
+
+    def remove_observer(self, observer: SearchObserver[S, A]) -> None:
+        self.observers.remove(observer)
+
+    def emit(self, event: SearchEvent[S, A]) -> None:
+        for observer in self.observers:
+            observer.on_event(event)
 
 
-class BreadthFirstSearchAlgorithm(SearchAlgorithm):
-    def search(
-        self, problem: SearchProblem[S, A], observer: SearchObserver[S, A] | None = None
-    ) -> Node[S, A] | None:
-        return graph_search(problem, QueueFrontier[S, A](), observer)
+class DepthFirstSearchAlgorithm(ObservableSearchAlgorithm[S, A]):
+    @override
+    def search(self, problem: SearchProblem[S, A]) -> Node[S, A] | None:
+        return graph_search(problem, StackFrontier[S, A](), self.emit)
 
 
-class IterativeDeepeningDepthFirstSearchAlgorithm(SearchAlgorithm):
-    def search(
-        self, problem: SearchProblem[S, A], observer: SearchObserver[S, A] | None = None
-    ) -> Node[S, A] | None:
+class BreadthFirstSearchAlgorithm(ObservableSearchAlgorithm[S, A]):
+    @override
+    def search(self, problem: SearchProblem[S, A]) -> Node[S, A] | None:
+        return graph_search(problem, QueueFrontier[S, A](), self.emit)
+
+
+class IterativeDeepeningDepthFirstSearchAlgorithm(ObservableSearchAlgorithm[S, A]):
+    @override
+    def search(self, problem: SearchProblem[S, A]) -> Node[S, A] | None:
         depth_limit = 0
         while True:
             final_node, has_cutoff_occurred = graph_search_depth_limited(
-                problem, depth_limit, observer
+                problem, depth_limit, self.emit
             )
 
             if final_node is not None:
@@ -247,23 +246,21 @@ class IterativeDeepeningDepthFirstSearchAlgorithm(SearchAlgorithm):
             depth_limit += 1
 
 
-class UniformCostSearchAlgorithm(SearchAlgorithm):
-    def search(
-        self, problem: SearchProblem[S, A], observer: SearchObserver[S, A] | None = None
-    ) -> Node[S, A] | None:
+class UniformCostSearchAlgorithm(ObservableSearchAlgorithm[S, A]):
+    @override
+    def search(self, problem: SearchProblem[S, A]) -> Node[S, A] | None:
         return graph_search_with_replacement(
             problem,
             PriorityQueueFrontier[S, A](
                 key=lambda n: (n.path_cost, problem.tie_breaker(n.state))
             ),
-            observer,
+            self.emit,
         )
 
 
-class AStarSearchAlgorithm(SearchAlgorithm):
-    def search(
-        self, problem: SearchProblem[S, A], observer: SearchObserver[S, A] | None = None
-    ) -> Node[S, A] | None:
+class AStarSearchAlgorithm(ObservableSearchAlgorithm[S, A]):
+    @override
+    def search(self, problem: SearchProblem[S, A]) -> Node[S, A] | None:
         return graph_search_with_replacement(
             problem,
             PriorityQueueFrontier[S, A](
@@ -272,5 +269,5 @@ class AStarSearchAlgorithm(SearchAlgorithm):
                     problem.tie_breaker(n.state),
                 )
             ),
-            observer,
+            self.emit,
         )

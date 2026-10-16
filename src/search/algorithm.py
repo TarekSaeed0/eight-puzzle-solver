@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from typing import Generic, TypeVar, override
 from search.node import Node
 from search.event import (

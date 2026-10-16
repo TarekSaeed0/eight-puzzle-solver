@@ -28,8 +28,10 @@ class Frontier(ABC, Generic[S, A]):
 
 
 class StackFrontier(Frontier[S, A]):
+    queue: deque[Node[S, A]]
+
     def __init__(self):
-        self.queue = deque[Node[S, A]]()
+        self.queue = deque()
 
     @override
     def push(self, node: Node[S, A]) -> None:
@@ -49,8 +51,10 @@ class StackFrontier(Frontier[S, A]):
 
 
 class QueueFrontier(Frontier[S, A]):
+    queue: deque[Node[S, A]]
+
     def __init__(self):
-        self.queue = deque[Node[S, A]]()
+        self.queue = deque()
 
     @override
     def push(self, node: Node[S, A]) -> None:
@@ -70,10 +74,14 @@ class QueueFrontier(Frontier[S, A]):
 
 
 class PriorityQueueFrontier(Frontier[S, A]):
+    key: Callable[[Node[S, A]], Any]
+    heap: list[Node[S, A]]
+    state_to_index: dict[S, int]
+
     def __init__(self, key: Callable[[Node[S, A]], Any]):
         self.key = key
-        self.heap: list[Node[S, A]] = []
-        self.state_to_index: dict[S, int] = {}
+        self.heap = []
+        self.state_to_index = {}
 
     @override
     def push(self, node: Node[S, A]) -> None:

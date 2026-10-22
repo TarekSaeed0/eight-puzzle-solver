@@ -36,20 +36,20 @@ def graph_search(
 
     frontier.push(initial_node)
 
-    emit(SearchStartedEvent(list(frontier.nodes()), explored, initial_node))
+    emit(SearchStartedEvent(frontier.nodes(), explored, initial_node))
 
     while not frontier.is_empty():
         current_node = frontier.pop()
 
-        emit(NodePoppedEvent(list(frontier.nodes()), explored, current_node))
+        emit(NodePoppedEvent(frontier.nodes(), explored, current_node))
 
         if current_node.state in explored:
-            emit(NodeSkippedEvent(list(frontier.nodes()), explored, current_node))
+            emit(NodeSkippedEvent(frontier.nodes(), explored, current_node))
 
             continue
 
         if problem.is_goal(current_node.state):
-            emit(SearchEndedEvent(list(frontier.nodes()), explored, current_node))
+            emit(SearchEndedEvent(frontier.nodes(), explored, current_node))
 
             return current_node
 
@@ -63,15 +63,13 @@ def graph_search(
 
             frontier.push(child)
 
-            emit(NodePushedEvent(list(frontier.nodes()), explored, child))
+            emit(NodePushedEvent(frontier.nodes(), explored, child))
 
         emit(
-            NodeExpandedEvent(
-                list(frontier.nodes()), explored, current_node, list(children)
-            )
+            NodeExpandedEvent(frontier.nodes(), explored, current_node, list(children))
         )
 
-    emit(SearchEndedEvent(list(frontier.nodes()), explored, None))
+    emit(SearchEndedEvent(frontier.nodes(), explored, None))
 
     return None
 
@@ -84,29 +82,33 @@ def graph_search_depth_limited(
     frontier = StackFrontier[S, A]()
     explored = set()
 
+    best_depth: dict[S, int] = {}
+
     has_cutoff_occurred = False
 
     initial_node = Node(state=problem.initial_state())
 
     frontier.push(initial_node)
 
-    emit(SearchStartedEvent(list(frontier.nodes()), explored, initial_node))
+    emit(SearchStartedEvent(frontier.nodes(), explored, initial_node))
 
     while not frontier.is_empty():
         current_node = frontier.pop()
 
-        emit(NodePoppedEvent(list(frontier.nodes()), explored, current_node))
-
-        if current_node.state in explored:
-            emit(NodeSkippedEvent(list(frontier.nodes()), explored, current_node))
-
-            continue
+        emit(NodePoppedEvent(frontier.nodes(), explored, current_node))
 
         if problem.is_goal(current_node.state):
-            emit(SearchEndedEvent(list(frontier.nodes()), explored, current_node))
+            emit(SearchEndedEvent(frontier.nodes(), explored, current_node))
 
             return current_node, False
 
+        seen_depth = best_depth.get(current_node.state)
+        if seen_depth is not None and seen_depth <= current_node.depth:
+            emit(NodeSkippedEvent(frontier.nodes(), explored, current_node))
+
+            continue
+
+        best_depth[current_node.state] = current_node.depth
         explored.add(current_node.state)
 
         if current_node.depth >= depth_limit:
@@ -116,20 +118,19 @@ def graph_search_depth_limited(
         children = current_node.children(problem)
 
         for child in children:
-            if child.state in explored:
+            seen_depth = best_depth.get(child.state)
+            if seen_depth is not None and seen_depth <= child.depth:
                 continue
 
             frontier.push(child)
 
-            emit(NodePushedEvent(list(frontier.nodes()), explored, child))
+            emit(NodePushedEvent(frontier.nodes(), explored, child))
 
         emit(
-            NodeExpandedEvent(
-                list(frontier.nodes()), explored, current_node, list(children)
-            )
+            NodeExpandedEvent(frontier.nodes(), explored, current_node, list(children))
         )
 
-    emit(SearchEndedEvent(list(frontier.nodes()), explored, None))
+    emit(SearchEndedEvent(frontier.nodes(), explored, None))
 
     return None, has_cutoff_occurred
 
@@ -145,20 +146,20 @@ def graph_search_with_replacement(
 
     frontier.push(initial_node)
 
-    emit(SearchStartedEvent(list(frontier.nodes()), explored, initial_node))
+    emit(SearchStartedEvent(frontier.nodes(), explored, initial_node))
 
     while not frontier.is_empty():
         current_node = frontier.pop()
 
-        emit(NodePoppedEvent(list(frontier.nodes()), explored, current_node))
+        emit(NodePoppedEvent(frontier.nodes(), explored, current_node))
 
         if current_node.state in explored:
-            emit(NodeSkippedEvent(list(frontier.nodes()), explored, current_node))
+            emit(NodeSkippedEvent(frontier.nodes(), explored, current_node))
 
             continue
 
         if problem.is_goal(current_node.state):
-            emit(SearchEndedEvent(list(frontier.nodes()), explored, current_node))
+            emit(SearchEndedEvent(frontier.nodes(), explored, current_node))
 
             return current_node
 
@@ -174,23 +175,19 @@ def graph_search_with_replacement(
             if not existing_node:
                 frontier.push(child)
 
-                emit(NodePushedEvent(list(frontier.nodes()), explored, child))
+                emit(NodePushedEvent(frontier.nodes(), explored, child))
             elif child.path_cost < existing_node.path_cost:
                 frontier.replace(child)
 
                 emit(
-                    NodeReplacedEvent(
-                        list(frontier.nodes()), explored, existing_node, child
-                    )
+                    NodeReplacedEvent(frontier.nodes(), explored, existing_node, child)
                 )
 
         emit(
-            NodeExpandedEvent(
-                list(frontier.nodes()), explored, current_node, list(children)
-            )
+            NodeExpandedEvent(frontier.nodes(), explored, current_node, list(children))
         )
 
-    emit(SearchEndedEvent(list(frontier.nodes()), explored, None))
+    emit(SearchEndedEvent(frontier.nodes(), explored, None))
 
     return None
 

@@ -1,4 +1,4 @@
-"""8-Puzzle AI Solver - Flet UI.
+"""8-Puzzle Solver - Flet UI.
 
 Design notes
 ------------
@@ -273,7 +273,7 @@ def main(page: ft.Page):
     C = ft.Colors
     s = AppState()
 
-    page.title = "8-Puzzle AI Solver — Alexandria University Lab 1"
+    page.title = "8-Puzzle Solver — Alexandria University Lab 1"
     page.theme_mode = ft.ThemeMode.SYSTEM  # follow the OS light/dark setting
     page.theme = ft.Theme(color_scheme_seed=C.INDIGO)
     page.dark_theme = ft.Theme(color_scheme_seed=C.INDIGO)

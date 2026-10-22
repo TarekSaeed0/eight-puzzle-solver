@@ -1,4 +1,5 @@
 from abc import ABC
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 from search.node import Node
@@ -9,7 +10,7 @@ A = TypeVar("A")
 
 @dataclass
 class SearchEvent(ABC, Generic[S, A]):
-    frontier: list[Node[S, A]]
+    frontier: Iterable[Node[S, A]]
     explored: set[S]
 
 

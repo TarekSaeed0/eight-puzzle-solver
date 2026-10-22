@@ -4,17 +4,15 @@ version = "0.1.0"
 description = "Solver of 8-Puzzle using informed and uninformed search algorithms."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
-    "flet>=1.0.4"
-]
+dependencies = ["flet>=1.0.4"]
 
 [dependency-groups]
 dev = [
-    "flet-cli>=1.0.4",
-    "flet-desktop>=1.0.4",
-    "flet-web>=1.0.4",
-    "flet[test]>=1.0.4",
-    "ruff>=0.17.0",
+	"flet-cli>=1.0.4",
+	"flet-desktop>=1.0.4",
+	"flet-web>=1.0.4",
+	"flet[test]>=1.0.4",
+	"ruff>=0.17.0",
 ]
 
 [tool.pyright]
@@ -31,6 +29,7 @@ pythonpath = ["src"]
 
 [tool.flet]
 desktop_flavor = "light"
+product = "8-Puzzle Solver"
 
 [tool.flet.app]
 path = "src"

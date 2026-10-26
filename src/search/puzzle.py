@@ -2,6 +2,7 @@ import math
 import random
 from collections.abc import Iterable
 from typing import Literal, override
+
 from search.problem import SearchProblem, Successor
 
 # State is a 9-tuple of ints (0..8), Action is the direction moved by the blank space (0)
@@ -24,6 +25,7 @@ class EightPuzzleProblem(SearchProblem[PuzzleState, PuzzleAction]):
         goal: PuzzleState = GOAL_STATE,
         heuristic_type: HeuristicType = "manhattan",
     ):
+        """Create a puzzle problem with a board, goal, and heuristic choice."""
         self._initial = initial
         self._goal = goal
         self._heuristic_type = heuristic_type
@@ -32,14 +34,19 @@ class EightPuzzleProblem(SearchProblem[PuzzleState, PuzzleAction]):
 
     @override
     def initial_state(self) -> PuzzleState:
+        """Return the configured starting board."""
         return self._initial
 
     @override
     def is_goal(self, state: PuzzleState) -> bool:
+        """Return whether the board matches the configured goal."""
         return state == self._goal
 
     @override
-    def successors(self, state: PuzzleState) -> Iterable[Successor[PuzzleState, PuzzleAction]]:
+    def successors(
+        self, state: PuzzleState
+    ) -> Iterable[Successor[PuzzleState, PuzzleAction]]:
+        """Yield each legal blank move and the resulting board."""
         blank_idx = state.index(0)
         row, col = blank_idx // 3, blank_idx % 3
 
@@ -63,6 +70,7 @@ class EightPuzzleProblem(SearchProblem[PuzzleState, PuzzleAction]):
 
     @override
     def heuristic(self, state: PuzzleState) -> float:
+        """Return the configured Manhattan, Euclidean, or zero estimate."""
         if self._heuristic_type == "none":
             return 0.0
 
@@ -76,12 +84,15 @@ class EightPuzzleProblem(SearchProblem[PuzzleState, PuzzleAction]):
             if self._heuristic_type == "manhattan":
                 total_h += abs(curr_row - goal_row) + abs(curr_col - goal_col)
             elif self._heuristic_type == "euclidean":
-                total_h += math.sqrt((curr_row - goal_row) ** 2 + (curr_col - goal_col) ** 2)
+                total_h += math.sqrt(
+                    (curr_row - goal_row) ** 2 + (curr_col - goal_col) ** 2
+                )
 
         return total_h
 
     @override
     def tie_breaker(self, state: PuzzleState) -> PuzzleState:
+        """Use the board tuple to deterministically break priority ties."""
         return state
 
     @staticmethod

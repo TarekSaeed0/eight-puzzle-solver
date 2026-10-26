@@ -1,5 +1,6 @@
 import time
 from typing import override
+
 from search.event import (
     NodeExpandedEvent,
     NodePushedEvent,
@@ -13,12 +14,14 @@ from search.puzzle import PuzzleAction, PuzzleState
 
 
 class PuzzleMetricsObserver(SearchObserver[PuzzleState, PuzzleAction]):
-
+    """Collect timing, depth, expansion, and solution-path metrics."""
 
     def __init__(self) -> None:
+        """Create an observer with empty metrics."""
         self.reset()
 
     def reset(self) -> None:
+        """Clear metrics so this observer can be reused."""
         self.nodes_expanded: int = 0
         self.max_search_depth: int = 0
         self.start_time: float = 0.0
@@ -32,6 +35,7 @@ class PuzzleMetricsObserver(SearchObserver[PuzzleState, PuzzleAction]):
 
     @override
     def on_event(self, event: SearchEvent[PuzzleState, PuzzleAction]) -> None:
+        """Update metrics in response to one search event."""
         if isinstance(event, SearchStartedEvent):
             if not self._timer_started:
                 self.start_time = time.perf_counter()
@@ -39,16 +43,13 @@ class PuzzleMetricsObserver(SearchObserver[PuzzleState, PuzzleAction]):
 
         elif isinstance(event, NodeExpandedEvent):
             self.nodes_expanded += 1
-            if event.node.depth > self.max_search_depth:
-                self.max_search_depth = event.node.depth
+            self.max_search_depth = max(self.max_search_depth, event.node.depth)
 
         elif isinstance(event, NodePushedEvent):
-            if event.node.depth > self.max_search_depth:
-                self.max_search_depth = event.node.depth
+            self.max_search_depth = max(self.max_search_depth, event.node.depth)
 
         elif isinstance(event, NodeReplacedEvent):
-            if event.new_node.depth > self.max_search_depth:
-                self.max_search_depth = event.new_node.depth
+            self.max_search_depth = max(self.max_search_depth, event.new_node.depth)
 
         elif isinstance(event, SearchEndedEvent):
             self.end_time = time.perf_counter()

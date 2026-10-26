@@ -1,32 +1,14 @@
-"""8-Puzzle Solver - Flet UI.
-
-Design notes
-------------
-* One piece of state (`AppState`) is the single source of truth. Every handler
-  mutates it and then calls `refresh()` / `render_results()`, which derive ALL
-  visuals (tiles, enabled/disabled buttons, visibility) from that state.
-* Searches run in a worker thread (`asyncio.to_thread`), so the UI never freezes
-  and can show a loading indicator. They can be cancelled through an observer
-  that raises `SearchCancelled` on the next search event.
-* The trace is paginated (10 steps per page). DFS can legitimately return paths
-  with 100,000+ steps; one widget per step would freeze or crash the UI.
-* No `expand=True` inside the scrolling page (that caused the endless gray
-  area): every scrollable region has either a fixed height or none at all.
-"""
-
 import asyncio
 import math
+import re
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import flet as ft
-import re
-from typing import Literal
 
-from search.puzzle import EightPuzzleProblem, PuzzleAction, PuzzleState
 from search.algorithm import (
     AStarSearchAlgorithm,
     BreadthFirstSearchAlgorithm,
@@ -36,10 +18,8 @@ from search.algorithm import (
 from search.event import SearchEvent
 from search.metrics import PuzzleMetricsObserver
 from search.observer import SearchObserver
+from search.puzzle import EightPuzzleProblem, PuzzleAction, PuzzleState
 
-# --------------------------------------------------------------------------- #
-# Constants
-# --------------------------------------------------------------------------- #
 DEFAULT_BOARD: PuzzleState = (1, 2, 5, 3, 4, 0, 6, 7, 8)
 TILE = 84  # px, 3 tiles + gaps = 268 px -> fits a 320 px wide phone
 PAGE_SIZE = 10  # trace rows per page
@@ -66,9 +46,6 @@ ALGO_OPTIONS = {
 SPEEDS = {"slow": 0.8, "normal": 0.45, "fast": 0.15, "turbo": 0.03}
 
 
-# --------------------------------------------------------------------------- #
-# Search plumbing (UI independent)
-# --------------------------------------------------------------------------- #
 class SearchCancelled(Exception):
     """Raised inside the worker thread when the user presses Cancel."""
 
@@ -174,10 +151,6 @@ def build_trace_text(result: RunResult, initial: PuzzleState) -> str:
     return "\n".join(lines)
 
 
-# --------------------------------------------------------------------------- #
-# Parsing and validation of the board text typed by the user (UI independent)
-# --------------------------------------------------------------------------- #
-
 Level = Literal["empty", "incomplete", "error", "ok"]
 
 
@@ -237,9 +210,6 @@ def parse_board(text: str) -> ParseResult:
     return ParseResult("ok", "Valid, solvable board.", state)
 
 
-# --------------------------------------------------------------------------- #
-# Application state
-# --------------------------------------------------------------------------- #
 @dataclass
 class AppState:
     board: PuzzleState = DEFAULT_BOARD  # last valid board (what the grid shows)
@@ -266,21 +236,17 @@ class AppState:
         return len(a.path) - 1 if a else 0
 
 
-# --------------------------------------------------------------------------- #
-# UI
-# --------------------------------------------------------------------------- #
 def main(page: ft.Page):
     C = ft.Colors
     s = AppState()
 
-    page.title = "8-Puzzle Solver — Alexandria University Lab 1"
-    page.theme_mode = ft.ThemeMode.SYSTEM  # follow the OS light/dark setting
+    page.title = "8-Puzzle Solver"
+    page.theme_mode = ft.ThemeMode.SYSTEM
     page.theme = ft.Theme(color_scheme_seed=C.INDIGO)
     page.dark_theme = ft.Theme(color_scheme_seed=C.INDIGO)
     page.padding = 16
     page.scroll = ft.ScrollMode.AUTO
 
-    # ---------------------------- small helpers ---------------------------- #
     def card(title: str, body: ft.Control, **kwargs) -> ft.Container:
         return ft.Container(
             content=ft.Column(
@@ -324,7 +290,6 @@ def main(page: ft.Page):
         )
         return pill, text
 
-    # ------------------------------ inputs --------------------------------- #
     state_input = ft.TextField(
         label="Initial state (0 = blank)",
         value=",".join(map(str, DEFAULT_BOARD)),
@@ -365,7 +330,6 @@ def main(page: ft.Page):
     random_btn = ft.OutlinedButton("Random board", icon=ft.Icons.SHUFFLE)
     cancel_btn = ft.OutlinedButton("Cancel", icon=ft.Icons.CLOSE, visible=False)
 
-    # ------------------------------ status --------------------------------- #
     status_spinner = ft.ProgressRing(width=18, height=18, stroke_width=2, visible=False)
     status_text = ft.Text("", expand=True, selectable=True)
     STATUS_STYLES = {  # kind -> (background, text colour, icon)
@@ -419,12 +383,10 @@ def main(page: ft.Page):
         "Ready. Enter a board (or pick a random one), choose an algorithm and press Solve.",
     )
 
-    # ------------------------------ board ---------------------------------- #
     GAP = 8
     CELL = TILE + GAP
     BOARD_SIZE = 3 * TILE + 2 * GAP
 
-    # Static slots: the 9 cells of the board (the blank is just an empty slot).
     slot_boxes = [
         ft.Container(
             left=(i % 3) * CELL,
@@ -523,7 +485,6 @@ def main(page: ft.Page):
         ],
     )
 
-    # ----------------------------- results --------------------------------- #
     def make_metric(title: str) -> tuple[ft.Container, ft.Text]:
         value = ft.Text(
             "-",
@@ -617,25 +578,7 @@ def main(page: ft.Page):
             history_card,
         ],
     )
-    empty_card = ft.Container(
-        padding=24,
-        alignment=ft.Alignment.CENTER,
-        border_radius=16,
-        border=ft.Border.all(1, C.OUTLINE_VARIANT),
-        content=ft.Column(
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=6,
-            controls=[
-                ft.Icon(ft.Icons.INSIGHTS, size=36, color=C.ON_SURFACE_VARIANT),
-                ft.Text("No results yet", size=16, weight=ft.FontWeight.W_600),
-                muted(
-                    "Press Solve to see the path, cost, nodes expanded, depth and running time."
-                ),
-            ],
-        ),
-    )
 
-    # --------------------------- table helpers ----------------------------- #
     def table_row(
         cells: list[str], weights: list[int], header=False, active=False, on_click=None
     ) -> ft.Container:
@@ -660,13 +603,11 @@ def main(page: ft.Page):
             ink=on_click is not None,
         )
 
-    # -------------------------- rendering functions ------------------------ #
     def render_results() -> None:
         """Rebuilds everything that depends on WHICH run is shown (not the step)."""
         r = s.active
         has = r is not None and r.solved
         results_col.visible = has
-        empty_card.visible = not has
         if not has or r is None:
             compare_card.visible = False
             history_card.visible = False
@@ -871,7 +812,7 @@ def main(page: ft.Page):
             what = (
                 "Initial state" if action is None else f"{ARROWS[action]} Move {action}"
             )
-            tail = "  ·  ✓ Goal reached" if s.step == last else ""
+            tail = "  · Goal reached" if s.step == last else ""
             step_text.value = f"Step {s.step} / {last}  ·  {what}{tail}"
         else:
             step_text.value = "Preview of the initial board"
@@ -907,7 +848,6 @@ def main(page: ft.Page):
         render_trace()
         page.update()
 
-    # ------------------------------ handlers ------------------------------- #
     def stop_playback() -> None:
         s.playing = False
         s.play_gen += 1
@@ -1048,7 +988,7 @@ def main(page: ft.Page):
         if s.active is None or s.busy:
             return
         s.step = max(0, min(int(idx), s.last_step))
-        s.trace_page = s.step // PAGE_SIZE  # trace follows the current step
+        s.trace_page = s.step // PAGE_SIZE
         refresh(skip_slider=from_slider, instant=from_slider)
 
     async def play_loop(gen: int) -> None:
@@ -1086,7 +1026,6 @@ def main(page: ft.Page):
         set_status("busy", f"Preparing {len(r.path):,} steps…")
         page.update()
         try:
-            # Build the bytes off the UI thread (DFS traces are ~7 MB)
             data = await asyncio.to_thread(
                 lambda: build_trace_text(r, board).encode("utf-8")
             )
@@ -1094,17 +1033,15 @@ def main(page: ft.Page):
             path = await file_picker.save_file(
                 dialog_title="Save trace",
                 file_name=f"trace_{r.key.lower()}_{stamp}.txt",
-                src_bytes=data,  # required on Android / iOS / web
+                src_bytes=data,
             )
             is_mobile = page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS)
             if page.web or is_mobile:
-                # The system dialog saves the bytes itself and may not report a path back.
                 set_status(
                     "info",
                     "Save dialog closed. If you picked a location, the trace was saved there.",
                 )
             elif path:
-                # Desktop: write to the location the user picked (harmless if already written).
                 await asyncio.to_thread(Path(path).write_bytes, data)
                 set_status("success", f"Trace saved to {path}")
             else:
@@ -1114,7 +1051,7 @@ def main(page: ft.Page):
         refresh()
 
     def trace_page_to(page_idx: int) -> None:
-        s.trace_page = page_idx  # clamped to the valid range in render_trace()
+        s.trace_page = page_idx
         render_trace()
         page.update()
 
@@ -1140,7 +1077,6 @@ def main(page: ft.Page):
     trace_next.on_click = lambda e: trace_page_to(s.trace_page + 1)
     trace_last.on_click = lambda e: trace_page_to(10**9)
 
-    # ------------------------------ layout --------------------------------- #
     setup_card = card(
         "Setup",
         ft.Column(
@@ -1223,9 +1159,7 @@ def main(page: ft.Page):
                         controls=[
                             ft.Container(content=board_card, col={"xs": 12, "lg": 5}),
                             ft.Container(
-                                content=ft.Column(
-                                    spacing=16, controls=[empty_card, results_col]
-                                ),
+                                content=ft.Column(spacing=16, controls=[results_col]),
                                 col={"xs": 12, "lg": 7},
                             ),
                         ],
